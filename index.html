@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0B1220">
+    <title>Vamos Carga | Fletes Profesionales</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        :root { --lime: #C4F118; --dark: #0B1220; --dark-2: #131C2E; }
+        * { -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--dark); overflow-x: hidden; }
+
+        .map-dark-tiles {
+            filter: invert(92%) hue-rotate(190deg) brightness(110%) contrast(95%) saturate(60%);
+        }
+
+        #map { height: 55vh; width: 100%; z-index: 1; background-color: #0F172A; }
+        @media (min-width: 1024px) { #map { height: 100vh; } }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .pulse-pin { animation: pulsePin 2s infinite; }
+        @keyframes pulsePin {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.15); opacity: 0.85; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .fade-in { animation: fadeIn 0.18s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+        .btn-lime { background: linear-gradient(135deg, #C4F118 0%, #A5D40B 100%); box-shadow: 0 8px 20px rgba(196, 241, 24, 0.25); }
+        .btn-dark { background: linear-gradient(135deg, #0B1220 0%, #1E293B 100%); }
+
+        .search-input:focus-within { box-shadow: 0 0 0 3px rgba(196, 241, 24, 0.35); border-color: #C4F118; }
+
+        #sideDrawer { transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+
+        .leaflet-control-zoom { border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; border-radius: 12px !important; overflow: hidden; }
+        .leaflet-control-zoom a { background: white !important; color: #0B1220 !important; font-weight: bold !important; }
+    </style>
+</head>
+<body class="text-slate-900 antialiased">
+
+    <div id="menuBackdrop" onclick="toggleMenu()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden transition-opacity"></div>
+
+    <!-- DRAWER -->
+    <aside id="sideDrawer" class="fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white z-50 transform -translate-x-full flex flex-col shadow-2xl">
+        <div style="background: var(--dark)" class="text-white p-6 pt-8 pb-7">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg" style="background: var(--lime); color: var(--dark)">V</div>
+                    <div>
+                        <p class="text-xl font-black tracking-tight">Vamos<span style="color: var(--lime)">Carga</span></p>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Fletes & Logística</p>
+                    </div>
+                </div>
+                <button onclick="toggleMenu()" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="flex items-center justify-between gap-2 mt-5 p-3.5 rounded-2xl" style="background: rgba(255,255,255,0.05)">
+                <div>
+                    <p class="font-bold text-sm leading-tight">Transporte de Carga</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Portuguesa • Envíos Nacionales</p>
+                </div>
+                <div class="flex items-center gap-1">
+                    <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                    <span class="text-[10px] font-bold text-emerald-400">EN LÍNEA</span>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto text-slate-800 font-semibold text-sm">
+            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-3 py-2">Servicios</p>
+            <button onclick="abrirModalPago(); toggleMenu();" class="w-full flex items-center gap-4 p-3.5 rounded-2xl hover:bg-slate-100 transition text-left">
+                <div class="w-10 h-10 rounded-xl bg-lime-100 flex items-center justify-center"><i class="fa-solid fa-mobile-screen-button text-lime-600"></i></div>
+                <div class="flex-1"><p class="font-bold text-slate-900">Datos Pago Móvil</p><p class="text-[11px] text-slate-400 font-normal">Banco, teléfono y cédula</p></div>
+                <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+            <a href="tel:+584120000000" class="w-full flex items-center gap-4 p-3.5 rounded-2xl hover:bg-slate-100 transition text-left">
+                <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center"><i class="fa-solid fa-phone text-blue-600"></i></div>
+                <div class="flex-1"><p class="font-bold text-slate-900">Llamada Directa</p><p class="text-[11px] text-slate-400 font-normal">+58 412-0000000</p></div>
+                <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </a>
+            <button onclick="pedirFleteWhatsApp(); toggleMenu();" class="w-full flex items-center gap-4 p-3.5 rounded-2xl hover:bg-slate-100 transition text-left">
+                <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><i class="fa-brands fa-whatsapp text-emerald-600"></i></div>
+                <div class="flex-1"><p class="font-bold text-slate-900">Soporte y Cotización</p><p class="text-[11px] text-slate-400 font-normal">Atención inmediata por WhatsApp</p></div>
+                <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-3 py-2 mt-2">Mapa</p>
+            <button onclick="obtenerUbicacionReal(); toggleMenu();" class="w-full flex items-center gap-4 p-3.5 rounded-2xl hover:bg-slate-100 transition text-left">
+                <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><i class="fa-solid fa-location-crosshairs text-purple-600"></i></div>
+                <div class="flex-1"><p class="font-bold text-slate-900">Mi Ubicación GPS</p><p class="text-[11px] text-slate-400 font-normal">Detectar punto de carga actual</p></div>
+                <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+            <button onclick="limpiarMapa(); toggleMenu();" class="w-full flex items-center gap-4 p-3.5 rounded-2xl hover:bg-slate-100 transition text-left">
+                <div class="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center"><i class="fa-solid fa-rotate-right text-rose-600"></i></div>
+                <div class="flex-1"><p class="font-bold text-slate-900">Reiniciar Ruta</p><p class="text-[11px] text-slate-400 font-normal">Limpiar búsqueda y marcadores</p></div>
+                <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+        </nav>
+        <div class="p-5 border-t border-slate-100 text-center">
+            <p class="text-[11px] text-slate-400">Servicio monitoreado 24/7</p>
+            <p class="text-[10px] text-slate-300 mt-1">© 2025 VamosCarga C.A.</p>
+        </div>
+    </aside>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="flex flex-col lg:flex-row relative min-h-screen">
+
+        <div class="relative w-full lg:w-7/12 xl:w-8/12">
+            <div class="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">
+                <div class="flex items-center gap-2.5 pointer-events-auto">
+                    <button onclick="toggleMenu()" class="w-12 h-12 bg-white rounded-2xl shadow-lg flex flex-col items-center justify-center gap-1.5 active:scale-95 transition">
+                        <span class="w-5 h-0.5 bg-slate-900 rounded-full"></span>
+                        <span class="w-5 h-0.5 bg-slate-900 rounded-full"></span>
+                        <span class="w-5 h-0.5 bg-slate-900 rounded-full"></span>
+                    </button>
+                    <div onclick="abrirModalPago()" class="cursor-pointer bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg flex items-center gap-3 active:scale-95 transition">
+                        <div class="w-9 h-9 rounded-full flex items-center justify-center text-base" style="background: var(--lime); color: var(--dark)">
+                            <i class="fa-solid fa-truck-fast"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-extrabold text-slate-900 leading-tight">Fletes Activos</p>
+                            <p id="badgeKm" class="text-[11px] text-slate-500 font-semibold">0.0 km • Pago Móvil</p>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="abrirModalPago()" class="pointer-events-auto btn-lime text-slate-950 font-extrabold text-xs px-4 py-3 rounded-2xl shadow-lg hidden sm:flex items-center gap-2 active:scale-95 transition">
+                    <i class="fa-solid fa-mobile-screen"></i> Pago Móvil
+                </button>
+            </div>
+
+            <div id="map"></div>
+
+            <div class="absolute bottom-7 left-4 right-4 z-30 flex items-center justify-between gap-2.5 pointer-events-none">
+                <div class="pointer-events-auto bg-white rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 flex-1 max-w-md">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-shield-halved text-blue-600 text-sm"></i>
+                    </div>
+                    <p id="mensajeEstadoMapa" class="text-xs font-semibold text-slate-700 leading-snug">
+                        Escribe el lugar exacto o toca el mapa para fijar puntos
+                    </p>
+                </div>
+                <button onclick="obtenerUbicacionReal()" id="btnGps" title="Usar mi ubicación GPS"
+                        class="pointer-events-auto w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center text-lg active:scale-90 transition">
+                    <i class="fa-solid fa-location-crosshairs text-slate-800"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- PANEL -->
+        <main class="w-full lg:w-5/12 xl:w-4/12 bg-white rounded-t-[28px] lg:rounded-none -mt-5 lg:mt-0 relative z-40 p-5 sm:p-6 lg:h-screen lg:overflow-y-auto shadow-[0_-10px_40px_rgba(0,0,0,0.3)] flex flex-col justify-between">
+            <div class="space-y-3.5">
+                <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto lg:hidden"></div>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-black text-slate-900 tracking-tight">Cotiza tu Flete</h1>
+                        <p class="text-[11px] text-slate-500 font-medium">Tarifa calculada en tiempo real</p>
+                    </div>
+                    <div class="flex items-center gap-1 bg-emerald-50 px-2.5 py-1.5 rounded-full">
+                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        <span class="text-[10px] font-bold text-emerald-700">DISPONIBLE</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-100 rounded-2xl p-3 space-y-2.5 border border-slate-200/80">
+                    <div class="relative">
+                        <div class="search-input flex items-center gap-2.5 bg-white px-3 py-2.5 rounded-xl shadow-sm border-2 border-transparent transition">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 pulse-pin"></span>
+                            <input type="text" id="inputOrigen" autocomplete="off"
+                                   oninput="buscarLugarExacto(this.value, 'origen')"
+                                   placeholder="Punto de carga (Ej: Acarigua...)"
+                                   class="w-full text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none bg-transparent">
+                            <button onclick="obtenerUbicacionReal()" title="GPS" class="text-[10px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg font-bold text-slate-700 shrink-0 transition">
+                                <i class="fa-solid fa-location-crosshairs"></i>
+                            </button>
+                        </div>
+                        <div id="listaOrigen" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-52 overflow-y-auto z-50 divide-y divide-slate-100"></div>
+                    </div>
+                    <div class="relative">
+                        <div class="search-input flex items-center gap-2.5 bg-white px-3 py-2.5 rounded-xl shadow-sm border-2 border-transparent transition">
+                            <span class="w-2.5 h-2.5 rounded-full bg-slate-950 shrink-0"></span>
+                            <input type="text" id="inputDestino" autocomplete="off"
+                                   oninput="buscarLugarExacto(this.value, 'destino')"
+                                   placeholder="¿A dónde va la mercancía?..."
+                                   class="w-full text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none bg-transparent">
+                        </div>
+                        <div id="listaDestino" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-52 overflow-y-auto z-50 divide-y divide-slate-100"></div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 rounded-2xl px-3.5 py-2.5 flex items-center gap-2.5 border border-slate-200/80">
+                    <i class="fa-solid fa-box text-slate-500 text-sm"></i>
+                    <input type="text" id="cargaInput" placeholder="¿Qué mercancía vas a trasladar?"
+                           class="bg-transparent w-full text-xs font-bold text-slate-900 placeholder-slate-500 focus:outline-none">
+                </div>
+
+                <div class="rounded-2xl p-4 shadow-lg relative overflow-hidden" style="background: linear-gradient(135deg, #0B1220 0%, #1E293B 100%)">
+                    <div class="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-20" style="background: var(--lime); transform: translate(30%, -30%)"></div>
+                    <div class="relative flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Distancia Vial</p>
+                            <p class="text-2xl font-black mt-0.5 text-white">
+                                <span id="distanciaTxt">0.0</span>
+                                <span class="text-xs font-normal text-slate-400">km</span>
+                            </p>
+                            <p id="tiempoTxt" class="text-[11px] font-medium mt-0.5" style="color: var(--lime)">Selecciona origen y destino</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Tarifa</p>
+                            <p id="precioTxt" class="text-3xl font-black tracking-tight" style="color: var(--lime)">$0.00</p>
+                            <p class="text-[10px] text-slate-400">Estimado</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Vehículo</label>
+                        <select id="vehiculoSelect" onchange="recalcularTarifa()" class="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer">
+                            <option value="1.0">🛻 Pick-up ($1/km)</option>
+                            <option value="2.0" selected>🚚 Camión 350 ($2/km)</option>
+                            <option value="3.5">🚛 Camión NPR ($3.5/km)</option>
+                        </select>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Peso</label>
+                        <select id="pesoSelect" onchange="recalcularTarifa()" class="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer">
+                            <option value="1.0">Hasta 500 kg</option>
+                            <option value="1.3">500 kg - 1.5 Ton</option>
+                            <option value="1.6">+1.5 Toneladas</option>
+                        </select>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Volumen</label>
+                        <select id="volumenSelect" onchange="recalcularTarifa()" class="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer">
+                            <option value="1.0">Medio Camión</option>
+                            <option value="1.3" selected>Camión Completo</option>
+                        </select>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Caleteros</label>
+                        <select id="ayudanteSelect" onchange="recalcularTarifa()" class="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer">
+                            <option value="0">Solo Chofer ($0)</option>
+                            <option value="10">1 Ayudante (+$10)</option>
+                            <option value="20">2 Ayudantes (+$20)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div onclick="abrirModalPago()" class="cursor-pointer rounded-2xl p-3 flex items-center justify-between shadow-sm active:scale-[0.99] transition" style="background: var(--lime)">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold shrink-0" style="background: var(--dark); color: var(--lime)">
+                            <i class="fa-solid fa-mobile-screen"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-extrabold text-slate-950">Pago Móvil Disponible</p>
+                            <p class="text-[11px] text-slate-800 font-medium">Toca para ver y copiar los datos</p>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-950"></i>
+                </div>
+            </div>
+
+            <div class="pt-3 mt-2 space-y-2">
+                <div class="flex gap-2">
+                    <button onclick="limpiarMapa()" class="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold py-3.5 rounded-2xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-rotate-right"></i> Reiniciar
+                    </button>
+                    <button onclick="pedirFleteWhatsApp()" class="w-2/3 btn-dark text-white font-extrabold py-3.5 rounded-2xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-95">
+                        <i class="fa-brands fa-whatsapp text-lg"></i>
+                        <span>Solicitar Flete</span>
+                    </button>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-400 px-1">
+                    <span><i class="fa-solid fa-hand-pointer mr-1"></i> Arrastra los pines para ajustar</span>
+                    <a href="tel:+584120000000" class="font-bold text-slate-800 hover:underline">
+                        <i class="fa-solid fa-phone text-[10px]"></i> 0412-0000000
+                    </a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL PAGO MÓVIL -->
+    <div id="modalPago" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl fade-in">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background: var(--lime); color: var(--dark)">
+                        <i class="fa-solid fa-mobile-screen"></i>
+                    </div>
+                    <h2 class="text-base font-extrabold text-slate-900">Datos Pago Móvil</h2>
+                </div>
+                <button onclick="cerrarModalPago()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-sm bg-slate-50 p-4 rounded-2xl border border-slate-200/70">
+                <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Banco:</span><span class="font-extrabold text-slate-900">Venezuela (0102)</span></div>
+                <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Teléfono:</span><span class="font-extrabold text-slate-900">0412-0000000</span></div>
+                <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Cédula / RIF:</span><span class="font-extrabold text-slate-900">V-12.345.678</span></div>
+                <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Titular:</span><span class="font-extrabold text-slate-900">VamosCarga C.A.</span></div>
+            </div>
+            <div class="flex items-start gap-2 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                <i class="fa-solid fa-circle-info text-amber-600 mt-0.5 text-sm"></i>
+                <p class="text-[11px] text-amber-800 font-medium leading-snug">Envía el comprobante por WhatsApp después de realizar el pago.</p>
+            </div>
+            <button onclick="copiarPagoMovil()" id="btnCopiar" class="w-full btn-lime text-slate-950 font-extrabold py-3.5 rounded-2xl text-xs shadow-md active:scale-95 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-copy"></i> Copiar Datos Bancarios
+            </button>
+        </div>
+    </div>
+
+    <!-- Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ⚠️⚠️⚠️ CONFIGURACIÓN PRINCIPAL ⚠️⚠️⚠️
+        const CONFIG = {
+            LOCATIONIQ_KEY: 'TU_LOCATIONIQ_KEY',   // ← Pega aquí tu token de LocationIQ
+            TELEFONO_TIO: '584120000000',           // ← Número de tu tío (sin + ni espacios)
+            CENTRO_INICIAL: [9.6766, -68.9739],    // San Rafael de Onoto
+            ZOOM_INICIAL: 14,
+            PAIS: 've'                              // Venezuela
+        };
+
+        // ============================================================
+        // MAPA BASE
+        // ============================================================
+        const map = L.map('map', { zoomControl: false }).setView(CONFIG.CENTRO_INICIAL, CONFIG.ZOOM_INICIAL);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // Usamos Carto Voyager (más limpio y actualizado que OSM estándar)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CartoDB',
+            subdomains: 'abcd',
+            maxZoom: 20,
+            className: 'map-dark-tiles'
+        }).addTo(map);
+
+        // ============================================================
+        // ICONOS PERSONALIZADOS
+        // ============================================================
+        const iconoOrigen = L.divIcon({
+            className: 'custom-pin',
+            html: `<div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+                    <div style="background:#ffffff; color:#0B1220; font-weight:800; font-size:11px; padding:4px 10px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.4); white-space:nowrap; margin-bottom:4px;">Punto de Carga</div>
+                    <div style="width:18px; height:18px; background:#C4F118; border:4px solid #0B1220; border-radius:50%; box-shadow:0 2px 8px rgba(0,0,0,0.5);"></div>
+                   </div>`,
+            iconSize: [110, 46],
+            iconAnchor: [55, 38]
+        });
+
+        const iconoDestino = L.divIcon({
+            className: 'custom-pin',
+            html: `<div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+                    <div style="background:#0B1220; color:#C4F118; font-weight:800; font-size:11px; padding:4px 10px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.4); white-space:nowrap; margin-bottom:4px;">Destino Final</div>
+                    <div style="width:18px; height:18px; background:#ffffff; border:4px solid #0B1220; border-radius:50%; box-shadow:0 2px 8px rgba(0,0,0,0.5);"></div>
+                   </div>`,
+            iconSize: [100, 46],
+            iconAnchor: [50, 38]
+        });
+
+        // ============================================================
+        // ESTADO GLOBAL
+        // ============================================================
+        let puntoOrigen = null;
+        let puntoDestino = null;
+        let marcadorOrigen = null;
+        let marcadorDestino = null;
+        let lineaRuta = null;
+        let distanciaKm = 0;
+        let temporizadorBusqueda = null;
+        let cacheBusquedas = {};
+
+        // ============================================================
+        // BUSCADOR DE ALTA PRECISIÓN CON LOCATIONIQ
+        // ============================================================
+        async function buscarLugarExacto(texto, tipo) {
+            clearTimeout(temporizadorBusqueda);
+            const idContenedor = tipo === 'origen' ? 'listaOrigen' : 'listaDestino';
+            const contenedor = document.getElementById(idContenedor);
+
+            if (texto.trim().length < 3) {
+                contenedor.classList.add('hidden');
+                return;
+            }
+
+            // Caché local para no gastar requests
+            if (cacheBusquedas[texto]) {
+                renderizarResultados(cacheBusquedas[texto], tipo, contenedor);
+                return;
+            }
+
+            temporizadorBusqueda = setTimeout(async () => {
+                contenedor.innerHTML = `
+                    <div class="p-3 flex items-center gap-2">
+                        <div class="w-4 h-4 rounded-full skeleton"></div>
+                        <div class="flex-1 space-y-1">
+                            <div class="h-2.5 rounded skeleton w-3/4"></div>
+                            <div class="h-2 rounded skeleton w-1/2"></div>
+                        </div>
+                    </div>`;
+                contenedor.classList.remove('hidden');
+                contenedor.classList.add('fade-in');
+
+                try {
+                    // LocationIQ Autocomplete API
+                    const url = `https://api.locationiq.com/v1/autocomplete?key=${CONFIG.LOCATIONIQ_KEY}&q=${encodeURIComponent(texto)}&countrycodes=${CONFIG.PAIS}&limit=6&format=json&addressdetails=1&tag=place:city,place:town,place:village,highway,road,house,building`;
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('Error en API');
+                    const resultados = await res.json();
+
+                    // Cachear
+                    cacheBusquedas[texto] = resultados;
+                    renderizarResultados(resultados, tipo, contenedor);
+
+                } catch (err) {
+                    contenedor.innerHTML = `<div class="p-3 text-xs text-rose-500 text-center">Error de conexión. Verifica tu API Key.</div>`;
+                    console.error(err);
+                }
+            }, 350);
+        }
+
+        function renderizarResultados(resultados, tipo, contenedor) {
+            contenedor.innerHTML = "";
+
+            if (!resultados || resultados.length === 0) {
+                contenedor.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">No se encontró. Toca el mapa directamente.</div>`;
+                return;
+            }
+
+            resultados.forEach(sitio => {
+                const item = document.createElement('button');
+                item.type = "button";
+                item.className = "w-full text-left px-3.5 py-2.5 hover:bg-slate-50 flex items-start gap-2.5 transition border-b border-slate-50 last:border-0";
+
+                const nombre = sitio.display_place || sitio.address?.name || sitio.display_name.split(',')[0];
+                const detalle = sitio.display_address || sitio.display_name;
+
+                item.innerHTML = `
+                    <div class="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <i class="fa-solid fa-location-dot text-slate-600 text-[10px]"></i>
+                    </div>
+                    <div class="truncate flex-1">
+                        <p class="text-xs font-extrabold text-slate-900 truncate">${nombre}</p>
+                        <p class="text-[11px] text-slate-500 truncate">${detalle}</p>
+                    </div>
+                `;
+
+                item.onclick = () => {
+                    const latlng = L.latLng(parseFloat(sitio.lat), parseFloat(sitio.lon));
+                    if (tipo === 'origen') {
+                        document.getElementById('inputOrigen').value = nombre;
+                        fijarOrigen(latlng);
+                    } else {
+                        document.getElementById('inputDestino').value = nombre;
+                        fijarDestino(latlng);
+                    }
+                    map.setView(latlng, 16);
+                    contenedor.classList.add('hidden');
+                };
+
+                contenedor.appendChild(item);
+            });
+        }
+
+        // Cerrar listas al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#inputOrigen') && !e.target.closest('#listaOrigen')) {
+                document.getElementById('listaOrigen').classList.add('hidden');
+            }
+            if (!e.target.closest('#inputDestino') && !e.target.closest('#listaDestino')) {
+                document.getElementById('listaDestino').classList.add('hidden');
+            }
+        });
+
+        // ============================================================
+        // GEOCODIFICACIÓN INVERSA (tocar mapa → obtener dirección real)
+        // ============================================================
+        async function obtenerDireccionDesdeCoords(latlng) {
+            try {
+                const url = `https://us1.locationiq.com/v1/reverse?key=${CONFIG.LOCATIONIQ_KEY}&lat=${latlng.lat}&lon=${latlng.lng}&format=json&addressdetails=1`;
+                const res = await fetch(url);
+                const data = await res.json();
+                return data.display_name || null;
+            } catch {
+                return null;
+            }
+        }
+
+        // ============================================================
+        // MENÚ
+        // ============================================================
+        function toggleMenu() {
+            document.getElementById('sideDrawer').classList.toggle('-translate-x-full');
+            document.getElementById('menuBackdrop').classList.toggle('hidden');
+        }
+
+        // ============================================================
+        // GPS
+        // ============================================================
+        function obtenerUbicacionReal() {
+            if (!navigator.geolocation) { alert("Tu dispositivo no soporta GPS."); return; }
+            const btn = document.getElementById('btnGps');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-slate-800"></i>';
+
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+                    const direccion = await obtenerDireccionDesdeCoords(latlng);
+                    document.getElementById('inputOrigen').value = direccion || "Mi ubicación actual (GPS)";
+                    fijarOrigen(latlng);
+                    map.setView(latlng, 16);
+                    btn.innerHTML = '<i class="fa-solid fa-location-crosshairs text-slate-800"></i>';
+                },
+                () => {
+                    btn.innerHTML = '<i class="fa-solid fa-location-crosshairs text-slate-800"></i>';
+                    alert("Activa los permisos de ubicación en tu navegador.");
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        // ============================================================
+        // INTERACCIÓN CON EL MAPA
+        // ============================================================
+        map.on('click', async function(e) {
+            if (!puntoOrigen) {
+                const direccion = await obtenerDireccionDesdeCoords(e.latlng);
+                document.getElementById('inputOrigen').value = direccion || `Punto (${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)})`;
+                fijarOrigen(e.latlng);
+            } else if (!puntoDestino) {
+                const direccion = await obtenerDireccionDesdeCoords(e.latlng);
+                document.getElementById('inputDestino').value = direccion || `Destino (${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)})`;
+                fijarDestino(e.latlng);
+            }
+        });
+
+        function fijarOrigen(latlng) {
+            puntoOrigen = latlng;
+            if (marcadorOrigen) map.removeLayer(marcadorOrigen);
+
+            marcadorOrigen = L.marker(puntoOrigen, { icon: iconoOrigen, draggable: true }).addTo(map);
+            marcadorOrigen.on('dragend', async (e) => {
+                puntoOrigen = e.target.getLatLng();
+                const direccion = await obtenerDireccionDesdeCoords(puntoOrigen);
+                if (direccion) document.getElementById('inputOrigen').value = direccion;
+                if (puntoDestino) calcularRutaReal();
+            });
+
+            document.getElementById('mensajeEstadoMapa').innerHTML =
+                `Selecciona el <b>Destino</b> en el buscador o mapa`;
+            if (puntoDestino) calcularRutaReal();
+        }
+
+        function fijarDestino(latlng) {
+            puntoDestino = latlng;
+            if (marcadorDestino) map.removeLayer(marcadorDestino);
+
+            marcadorDestino = L.marker(puntoDestino, { icon: iconoDestino, draggable: true }).addTo(map);
+            marcadorDestino.on('dragend', async (e) => {
+                puntoDestino = e.target.getLatLng();
+                const direccion = await obtenerDireccionDesdeCoords(puntoDestino);
+                if (direccion) document.getElementById('inputDestino').value = direccion;
+                calcularRutaReal();
+            });
+
+            document.getElementById('mensajeEstadoMapa').innerHTML =
+                `Ruta calculada con precisión.`;
+            calcularRutaReal();
+        }
+
+        // ============================================================
+        // RUTAS OSRM (gratis, sin tráfico pero muy precisas)
+        // ============================================================
+        async function calcularRutaReal() {
+            if (!puntoOrigen || !puntoDestino) return;
+            document.getElementById('tiempoTxt').innerText = "Calculando ruta vial...";
+
+            const url = `https://router.project-osrm.org/route/v1/driving/${puntoOrigen.lng},${puntoOrigen.lat};${puntoDestino.lng},${puntoDestino.lat}?overview=full&geometries=geojson`;
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.code === 'Ok' && data.routes.length > 0) {
+                    const ruta = data.routes[0];
+                    distanciaKm = (ruta.distance / 1000).toFixed(1);
+                    const min = Math.round(ruta.duration / 60);
+
+                    if (lineaRuta) map.removeLayer(lineaRuta);
+                    const coords = ruta.geometry.coordinates.map(c => [c[1], c[0]]);
+
+                    lineaRuta = L.polyline(coords, {
+                        color: '#C4F118', weight: 6, opacity: 0.95, lineCap: 'round'
+                    }).addTo(map);
+                    map.fitBounds(lineaRuta.getBounds(), { padding: [60, 60] });
+
+                    document.getElementById('distanciaTxt').innerText = distanciaKm;
+                    document.getElementById('badgeKm').innerText = `${distanciaKm} km • Pago Móvil`;
+                    document.getElementById('tiempoTxt').innerText = `Tiempo estimado: ~${min} min`;
+                    recalcularTarifa();
+                } else {
+                    calcularRutaRespaldo();
+                }
+            } catch {
+                calcularRutaRespaldo();
+            }
+        }
+
+        function calcularRutaRespaldo() {
+            if (lineaRuta) map.removeLayer(lineaRuta);
+            lineaRuta = L.polyline([puntoOrigen, puntoDestino], {
+                color: '#C4F118', weight: 5, dashArray: '8,8'
+            }).addTo(map);
+            map.fitBounds(lineaRuta.getBounds(), { padding: [60, 60] });
+
+            distanciaKm = ((puntoOrigen.distanceTo(puntoDestino) / 1000) * 1.25).toFixed(1);
+            document.getElementById('distanciaTxt').innerText = distanciaKm;
+            document.getElementById('badgeKm').innerText = `${distanciaKm} km • Pago Móvil`;
+            document.getElementById('tiempoTxt').innerText = `Distancia aproximada`;
+            recalcularTarifa();
+        }
+
+        // ============================================================
+        // TARIFA
+        // ============================================================
+        function recalcularTarifa() {
+            if (distanciaKm == 0) return;
+            const tarifaBase = 10;
+            const costoKm = parseFloat(document.getElementById('vehiculoSelect').value);
+            const multPeso = parseFloat(document.getElementById('pesoSelect').value);
+            const multVolumen = parseFloat(document.getElementById('volumenSelect').value);
+            const ayudantes = parseFloat(document.getElementById('ayudanteSelect').value);
+            let total = ((tarifaBase + (parseFloat(distanciaKm) * costoKm)) * multPeso * multVolumen) + ayudantes;
+            document.getElementById('precioTxt').innerText = `$${total.toFixed(2)}`;
+        }
+
+        // ============================================================
+        // LIMPIAR
+        // ============================================================
+        function limpiarMapa() {
+            if (marcadorOrigen) map.removeLayer(marcadorOrigen);
+            if (marcadorDestino) map.removeLayer(marcadorDestino);
+            if (lineaRuta) map.removeLayer(lineaRuta);
+            puntoOrigen = null; puntoDestino = null; distanciaKm = 0;
+
+            document.getElementById('inputOrigen').value = "";
+            document.getElementById('inputDestino').value = "";
+            document.getElementById('distanciaTxt').innerText = "0.0";
+            document.getElementById('badgeKm').innerText = "0.0 km • Pago Móvil";
+            document.getElementById('tiempoTxt').innerText = "Selecciona origen y destino";
+            document.getElementById('precioTxt').innerText = "$0.00";
+            document.getElementById('mensajeEstadoMapa').innerHTML =
+                `Escribe el lugar exacto o toca el mapa para fijar puntos`;
+        }
+
+        // ============================================================
+        // WHATSAPP
+        // ============================================================
+        function pedirFleteWhatsApp() {
+            if (!puntoOrigen || !puntoDestino) {
+                alert("Por favor indica el Origen y el Destino de la carga.");
+                return;
+            }
+            const textoOrigen = document.getElementById('inputOrigen').value || "Punto en mapa";
+            const textoDestino = document.getElementById('inputDestino').value || "Punto en mapa";
+            const carga = document.getElementById('cargaInput').value.trim() || "Mercancía general";
+            const vehiculo = document.getElementById('vehiculoSelect').options[document.getElementById('vehiculoSelect').selectedIndex].text;
+            const peso = document.getElementById('pesoSelect').options[document.getElementById('pesoSelect').selectedIndex].text;
+            const volumen = document.getElementById('volumenSelect').options[document.getElementById('volumenSelect').selectedIndex].text;
+            const ayudante = document.getElementById('ayudanteSelect').options[document.getElementById('ayudanteSelect').selectedIndex].text;
+            const precio = document.getElementById('precioTxt').innerText;
+
+            const linkOrigen = `https://www.google.com/maps?q=${puntoOrigen.lat},${puntoOrigen.lng}`;
+            const linkDestino = `https://www.google.com/maps?q=${puntoDestino.lat},${puntoDestino.lng}`;
+
+            const mensaje = `🚚 *SOLICITUD DE FLETE - VAMOS CARGA*%0A%0A` +
+                `📦 *Mercancía:* ${carga}%0A` +
+                `🚛 *Vehículo:* ${vehiculo}%0A` +
+                `⚖️ *Peso:* ${peso}%0A` +
+                `📐 *Volumen:* ${volumen}%0A` +
+                `💪 *Caleteros:* ${ayudante}%0A` +
+                `🛣️ *Distancia:* ${distanciaKm} km%0A` +
+                `💵 *Tarifa Estimada:* ${precio}%0A%0A` +
+                `🟢 *Origen (${textoOrigen}):* ${linkOrigen}%0A` +
+                `🔴 *Destino (${textoDestino}):* ${linkDestino}`;
+
+            window.open(`https://wa.me/${CONFIG.TELEFONO_TIO}?text=${mensaje}`, '_blank');
+        }
+
+        // ============================================================
+        // MODAL PAGO
+        // ============================================================
+        function abrirModalPago() {
+            document.getElementById('modalPago').classList.remove('hidden');
+            document.getElementById('modalPago').classList.add('flex');
+        }
+        function cerrarModalPago() {
+            document.getElementById('modalPago').classList.add('hidden');
+            document.getElementById('modalPago').classList.remove('flex');
+        }
+        function copiarPagoMovil() {
+            navigator.clipboard.writeText("0102 04120000000 12345678");
+            const btn = document.getElementById('btnCopiar');
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> ¡Datos Copiados!';
+            setTimeout(() => btn.innerHTML = original, 2000);
+        }
+
+        // Ajustar mapa al cargar
+        setTimeout(() => map.invalidateSize(), 100);
+    </script>
+</body>
+</html>
