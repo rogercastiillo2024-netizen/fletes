@@ -340,8 +340,8 @@
     <script>
         // ⚠️⚠️⚠️ CONFIGURACIÓN PRINCIPAL ⚠️⚠️⚠️
         const CONFIG = {
-            LOCATIONIQ_KEY: 'pk.35f0a26dd40df616b62ff481e5d3a071',   // ← Pega aquí tu token de LocationIQ
-            TELEFONO_TIO: '584125564856',           // ← Número de tu tío (sin + ni espacios)
+            LOCATIONIQ_KEY: 'pk.35f0a26dd40df616b62ff481e5d3a071', // ✅ Tu Key insertada aquí
+            TELEFONO_TIO: '584120000000',           // ← Recuerda cambiar por el número de tu tío
             CENTRO_INICIAL: [9.6766, -68.9739],    // San Rafael de Onoto
             ZOOM_INICIAL: 14,
             PAIS: 've'                              // Venezuela
@@ -353,11 +353,10 @@
         const map = L.map('map', { zoomControl: false }).setView(CONFIG.CENTRO_INICIAL, CONFIG.ZOOM_INICIAL);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // Usamos Carto Voyager (más limpio y actualizado que OSM estándar)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB',
-            subdomains: 'abcd',
-            maxZoom: 20,
+        // 🌟 MAPA GRATUITO (OpenStreetMap) - Sin API Key 🌟
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19,
             className: 'map-dark-tiles'
         }).addTo(map);
 
@@ -409,7 +408,6 @@
                 return;
             }
 
-            // Caché local para no gastar requests
             if (cacheBusquedas[texto]) {
                 renderizarResultados(cacheBusquedas[texto], tipo, contenedor);
                 return;
@@ -428,13 +426,11 @@
                 contenedor.classList.add('fade-in');
 
                 try {
-                    // LocationIQ Autocomplete API
-                    const url = `https://api.locationiq.com/v1/autocomplete?key=${CONFIG.LOCATIONIQ_KEY}&q=${encodeURIComponent(texto)}&countrycodes=${CONFIG.PAIS}&limit=6&format=json&addressdetails=1&tag=place:city,place:town,place:village,highway,road,house,building`;
+                    const url = `https://api.locationiq.com/v1/autocomplete?key=${CONFIG.LOCATIONIQ_KEY}&q=${encodeURIComponent(texto)}&countrycodes=${CONFIG.PAIS}&limit=6&format=json&addressdetails=1`;
                     const res = await fetch(url);
                     if (!res.ok) throw new Error('Error en API');
                     const resultados = await res.json();
 
-                    // Cachear
                     cacheBusquedas[texto] = resultados;
                     renderizarResultados(resultados, tipo, contenedor);
 
@@ -499,7 +495,7 @@
         });
 
         // ============================================================
-        // GEOCODIFICACIÓN INVERSA (tocar mapa → obtener dirección real)
+        // GEOCODIFICACIÓN INVERSA
         // ============================================================
         async function obtenerDireccionDesdeCoords(latlng) {
             try {
@@ -595,7 +591,7 @@
         }
 
         // ============================================================
-        // RUTAS OSRM (gratis, sin tráfico pero muy precisas)
+        // RUTAS OSRM
         // ============================================================
         async function calcularRutaReal() {
             if (!puntoOrigen || !puntoDestino) return;
